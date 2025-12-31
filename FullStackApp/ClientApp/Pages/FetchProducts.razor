@@ -1,0 +1,96 @@
+@page "/fetchproducts"
+@using System.Text.Json
+@inject HttpClient Http
+
+<h3>Product List</h3>
+
+@if (isLoading)
+{
+    <div class="alert alert-info">
+        <span>Loading products...</span>
+    </div>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">
+        <strong>Error:</strong> @errorMessage
+    </div>
+    <button class="btn btn-primary" @onclick="LoadProductsAsync">Retry</button>
+}
+else if (products != null && products.Length > 0)
+{
+    <ul>
+        @foreach (var product in products)
+        {
+            <li>@product.Name - $@product.Price (Stock: @product.Stock)</li>
+        }
+    </ul>
+}
+else
+{
+    <div class="alert alert-warning">
+        No products found.
+    </div>
+}
+
+@code {
+    private Product[]? products;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private const int TimeoutSeconds = 30;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProductsAsync();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        products = null;
+
+        try
+        {
+            // Create a cancellation token for timeout
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(TimeoutSeconds));
+            
+            // Call the API endpoint with timeout
+            products = await Http.GetFromJsonAsync<Product[]>("/api/products", cts.Token);
+            
+            // Validate the response
+            if (products == null)
+            {
+                errorMessage = "Received an invalid response from the server.";
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            errorMessage = $"Request timed out after {TimeoutSeconds} seconds. Please try again.";
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = $"Network error: {ex.Message}";
+        }
+        catch (JsonException ex)
+        {
+            errorMessage = $"Failed to parse the server response. The data format is invalid. {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An unexpected error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    public class Product
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public double Price { get; set; }
+        public int Stock { get; set; }
+    }
+}
