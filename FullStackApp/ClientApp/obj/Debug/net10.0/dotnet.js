@@ -5,7 +5,7 @@ var e=!1;const t=async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,
   "mainAssemblyName": "ClientApp",
   "applicationEnvironment": "Development",
   "resources": {
-    "hash": "sha256-wTLbeZZWGN73rN5rD13Xnxtz974WT+kYz21WRDnDqfY=",
+    "hash": "sha256-J2LNuLhMVxBtHD4SJJx8doOY0VQvLLgk0HktjhGghy0=",
     "jsModuleNative": [
       {
         "name": "dotnet.native.xanz2e7ksm.js"
@@ -1039,15 +1039,15 @@ var e=!1;const t=async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,
       },
       {
         "virtualPath": "ClientApp.wasm",
-        "name": "ClientApp.lnmkjr9cfi.wasm",
-        "integrity": "sha256-sX7OI7mDJSkWmagkAqqk5hgrD1nyAraFcKgni5lHh4o="
+        "name": "ClientApp.ze386qj6sx.wasm",
+        "integrity": "sha256-tR5IKMKX37a9MI8rZHR187eD59S+O+34qAZEINGbhlE="
       }
     ],
     "pdb": [
       {
         "virtualPath": "ClientApp.pdb",
-        "name": "ClientApp.0tgv928pa2.pdb",
-        "integrity": "sha256-1BchLMvBeol6YxJn5FjKy9SNQB6oa0CVTp7f3VpkXQE="
+        "name": "ClientApp.l5si4owd9d.pdb",
+        "integrity": "sha256-CYP7i35Cs3h6GDMpljBdLDQp4iFA3LgYVS/7jxlIcvI="
       }
     ],
     "libraryInitializers": [
@@ -1062,6 +1062,10 @@ var e=!1;const t=async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,
     ]
   },
   "debugLevel": -1,
+  "appsettings": [
+    "../appsettings.Development.json",
+    "../appsettings.json"
+  ],
   "globalizationMode": "sharded",
   "extensions": {
     "blazor": {}

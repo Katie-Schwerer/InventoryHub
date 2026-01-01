@@ -1,1 +1,3 @@
 # InventoryHub
+
+Copilot helped refactor code and maintain structure in the code. I copy and paste the code from the lessons and practice to my project an then had Copilot refactor and improve structure of the code. I asked it for stuff like generating integration code, debugging issues, structuring JSON responses, and optimizing performance. I did run into some challenges with the data not showing up. I was able to use Agent mode to have Copilot run several command to help show up. I would type in the error and it will try to get the code to run. I learned to Copilot Agent mode was great use for helping debug.

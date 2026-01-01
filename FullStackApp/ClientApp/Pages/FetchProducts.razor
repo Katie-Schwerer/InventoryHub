@@ -1,6 +1,8 @@
 @page "/fetchproducts"
 @using System.Text.Json
+@using Microsoft.JSInterop
 @inject HttpClient Http
+@inject IJSRuntime JS
 
 <h3>Product List</h3>
 
@@ -15,10 +17,14 @@ else if (!string.IsNullOrEmpty(errorMessage))
     <div class="alert alert-danger">
         <strong>Error:</strong> @errorMessage
     </div>
-    <button class="btn btn-primary" @onclick="LoadProductsAsync">Retry</button>
+    <button class="btn btn-primary" @onclick="() => LoadProductsAsync(forceRefresh: true)">Retry</button>
 }
 else if (products != null && products.Length > 0)
 {
+    <div class="mb-3">
+        <button class="btn btn-secondary btn-sm" @onclick="() => LoadProductsAsync(forceRefresh: true)">Refresh</button>
+        <span class="ms-2 text-muted">@(isCachedData ? "(Cached data)" : "(Fresh data)")</span>
+    </div>
     <ul>
         @foreach (var product in products)
         {
@@ -36,37 +42,105 @@ else
 @code {
     private Product[]? products;
     private bool isLoading = true;
+    private bool isCachedData = false;
     private string? errorMessage;
     private const int TimeoutSeconds = 30;
+    private const int CacheExpirationMinutes = 5;
+    
+    // Static cache to persist across component instances
+    private static Product[]? cachedProducts;
+    private static DateTime? cacheTimestamp;
+    private static readonly JsonSerializerOptions jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        AllowTrailingCommas = true
+    };
 
     protected override async Task OnInitializedAsync()
     {
         await LoadProductsAsync();
     }
 
-    private async Task LoadProductsAsync()
+    private async Task LoadProductsAsync(bool forceRefresh = false)
     {
         isLoading = true;
         errorMessage = null;
-        products = null;
+        isCachedData = false;
 
         try
         {
-            // Create a cancellation token for timeout
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(TimeoutSeconds));
-            
-            // Call the API endpoint with timeout
-            products = await Http.GetFromJsonAsync<Product[]>("/api/products", cts.Token);
-            
-            // Validate the response
-            if (products == null)
+            // Check cache first if not forcing refresh
+            if (!forceRefresh && IsCacheValid())
             {
-                errorMessage = "Received an invalid response from the server.";
+                products = cachedProducts;
+                isCachedData = true;
+                return;
             }
+
+            // Get current browser URL to build the correct API URL
+            var currentHost = await JS.InvokeAsync<string>("eval", "window.location.hostname");
+            var apiUrl = currentHost.Contains("github.dev")
+                ? $"https://{currentHost.Replace("-5250", "-5130")}/api/productlist"
+                : "http://localhost:5130/api/productlist";
+            
+            Console.WriteLine($"Current host: {currentHost}");
+            Console.WriteLine($"Fetching from: {apiUrl}");
+
+            // Create a temporary HttpClient with the correct base address
+            using var httpClient = new HttpClient { BaseAddress = new Uri(apiUrl.Replace("/api/productlist", "")) };
+            
+            // Fetch from API
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(TimeoutSeconds));
+            var response = await httpClient.GetAsync("/api/productlist", cts.Token);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = $"Server returned error: {response.StatusCode}";
+                // Fall back to cached data if available
+                if (cachedProducts != null)
+                {
+                    products = cachedProducts;
+                    isCachedData = true;
+                    errorMessage += " (Using cached data)";
+                }
+                return;
+            }
+            
+            var jsonContent = await response.Content.ReadAsStringAsync();
+            
+            if (string.IsNullOrWhiteSpace(jsonContent))
+            {
+                errorMessage = "Server returned empty response.";
+                return;
+            }
+            
+            var deserializedProducts = JsonSerializer.Deserialize<Product[]>(jsonContent, jsonOptions);
+            
+            if (deserializedProducts == null)
+            {
+                errorMessage = "Failed to deserialize the product list.";
+                return;
+            }
+            
+            // Validate and filter products
+            var validProducts = deserializedProducts
+                .Where(IsValidProduct)
+                .ToArray();
+            
+            var invalidCount = deserializedProducts.Length - validProducts.Length;
+            if (invalidCount > 0)
+            {
+                Console.WriteLine($"Skipped {invalidCount} invalid product(s)");
+            }
+            
+            // Update cache
+            products = validProducts;
+            cachedProducts = validProducts;
+            cacheTimestamp = DateTime.UtcNow;
         }
         catch (TaskCanceledException)
         {
-            errorMessage = $"Request timed out after {TimeoutSeconds} seconds. Please try again.";
+            errorMessage = $"Request timed out after {TimeoutSeconds} seconds.";
         }
         catch (HttpRequestException ex)
         {
@@ -74,16 +148,33 @@ else
         }
         catch (JsonException ex)
         {
-            errorMessage = $"Failed to parse the server response. The data format is invalid. {ex.Message}";
+            errorMessage = $"JSON error: {ex.Message}";
         }
         catch (Exception ex)
         {
-            errorMessage = $"An unexpected error occurred: {ex.Message}";
+            errorMessage = $"Unexpected error: {ex.Message}";
+            Console.WriteLine($"Exception: {ex}");
         }
         finally
         {
             isLoading = false;
         }
+    }
+    
+    private static bool IsCacheValid()
+    {
+        return cachedProducts != null && 
+               cacheTimestamp.HasValue && 
+               (DateTime.UtcNow - cacheTimestamp.Value).TotalMinutes < CacheExpirationMinutes;
+    }
+    
+    private static bool IsValidProduct(Product? product)
+    {
+        return product != null && 
+               product.Id > 0 && 
+               !string.IsNullOrWhiteSpace(product.Name) && 
+               product.Price >= 0 && 
+               product.Stock >= 0;
     }
 
     public class Product
